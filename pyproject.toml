@@ -60,6 +60,8 @@ dev = [
     "reasoning-gym",
     "textarena",
     "nltk",
+    "math-verify>=0.8.0",
+    "verifiers[all]",
 ]
 
 [project.optional-dependencies]
@@ -88,6 +90,14 @@ flash-attn = [{ requirement = "torch", match-runtime = true }]
 
 [tool.uv.extra-build-variables]
 flash-attn = { FLASH_ATTENTION_SKIP_CUDA_BUILD = "TRUE" }
+
+[tool.uv.workspace]
+members = [
+    ".",
+]
+
+[tool.uv.sources]
+verifiers = { workspace = true }
 
 [project.scripts]
 vf-eval = "verifiers.scripts.eval:main"

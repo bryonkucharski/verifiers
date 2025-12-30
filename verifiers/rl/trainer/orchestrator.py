@@ -347,7 +347,7 @@ class Orchestrator:
             items_per_process.append(proc_item_total)
 
         global_item_count = sum(items_per_process)
-
+        #import pdb;pdb.set_trace()
         return Batch(
             batch_id=batch_id,
             microbatches=microbatches,

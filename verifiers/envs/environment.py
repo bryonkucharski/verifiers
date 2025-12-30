@@ -148,7 +148,6 @@ class Environment(ABC):
             for key, value in sampling_args.items():
                 if key != "extra_body":
                     self.sampling_args[key] = value
-
         self.max_workers = max_workers
         for key, value in kwargs.items():
             setattr(self, key, value)
@@ -496,6 +495,7 @@ class Environment(ABC):
                         messages=prompt,
                         **sampling_args,
                     )
+                #import pdb;pdb.set_trace()
                 return response
             elif message_type == "completion":
                 if oai_tools:

@@ -152,7 +152,7 @@ class RLTrainer(Trainer):
         model.train()
         total_loss = torch.zeros((), device=self.accelerator.device)
         local_microbatches = batch.microbatches[self.accelerator.process_index]
-
+        #import pdb;pdb.set_trace()
         if batch.global_item_count <= 0:
             return total_loss
 
@@ -267,7 +267,7 @@ class RLTrainer(Trainer):
         loss = (-importance_ratio * advantages)[keep_mask].sum()
 
         mismatch_kl = torch.exp(log_importance_ratio) - log_importance_ratio - 1
-
+        #import pdb;pdb.set_trace()
         with torch.no_grad():
             ir_summary = summarize_values(importance_ratio[loss_mask])
             entropy_summary = summarize_values(entropies[loss_mask])
@@ -310,6 +310,7 @@ class RLTrainer(Trainer):
             all_entropies.append(entropies)
         logprobs = torch.cat(all_logprobs, dim=0)
         entropies = torch.cat(all_entropies, dim=0)
+        #import pdb;pdb.set_trace()
         return logprobs, entropies
 
     def update_vllm(self):

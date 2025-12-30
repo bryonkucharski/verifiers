@@ -1,3 +1,4 @@
+
 from dataclasses import dataclass, field
 from typing import List, Optional, Union
 
@@ -181,6 +182,10 @@ class RLConfig(TrainingArguments):
         default=0.0,
         metadata={"help": "Frequency penalty (default 0.0)"},
     )
+    chat_template_kwargs: Optional[dict] = field(
+        default=None,
+        metadata={"help": "Chat template kwargs passed to vLLM (e.g., {'enable_thinking': False})."},
+    )
 
     # generation parameters
     generation_timeout: float = field(
@@ -310,6 +315,19 @@ class RLConfig(TrainingArguments):
         if self.eval_strategy != "no":
             self.per_device_eval_batch_size = self.micro_batch_size
 
+        extra_body = {
+            "top_k": self.top_k,
+            "min_p": self.min_p,
+            "repetition_penalty": self.repetition_penalty,
+            "skip_special_tokens": False,
+            "spaces_between_special_tokens": False,
+            "include_stop_str_in_output": False,
+            "return_tokens_as_token_ids": True,
+            "return_token_ids": True,
+            "prompt_logprobs": True,
+        }
+        if self.chat_template_kwargs is not None:
+            extra_body["chat_template_kwargs"] = self.chat_template_kwargs
         self.sampling_args = {
             "temperature": self.temperature,
             "top_p": self.top_p,
@@ -318,16 +336,7 @@ class RLConfig(TrainingArguments):
             "presence_penalty": self.presence_penalty,
             "frequency_penalty": self.frequency_penalty,
             "logprobs": True,
-            "extra_body": {
-                "top_k": self.top_k,
-                "min_p": self.min_p,
-                "repetition_penalty": self.repetition_penalty,
-                "skip_special_tokens": False,
-                "spaces_between_special_tokens": False,
-                "include_stop_str_in_output": False,
-                "return_tokens_as_token_ids": True,
-                "return_token_ids": True,
-            },
+            "extra_body": extra_body,
         }
         self.gradient_accumulation_steps = 1
         super().__post_init__()

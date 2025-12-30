@@ -15,8 +15,8 @@ gpus = 1
 run_name = "gsm8k"
 
 [trainer.args]
-micro_batch_size = 12
+micro_batch_size = 8
 rollouts_per_example = 12
 batch_size = 144
 max_steps = 100
-max_seq_len = 2048
+max_seq_len = 1024
