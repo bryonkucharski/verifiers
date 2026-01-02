@@ -249,7 +249,7 @@ class Orchestrator:
                 completion_mask.append(tokens["completion_mask"])
                 completion_logprobs.append(tokens["completion_logprobs"])
                 advantages.append(step["advantage"])
-
+        
         # Build rewards_dict from rollout-level data (for logging only)
         rewards_dict = {"reward": env_results["reward"]}
         for k in env_results["metrics"]:

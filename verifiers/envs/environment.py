@@ -54,6 +54,7 @@ from verifiers.utils.path_utils import get_results_path
 from verifiers.utils.token_utils import (
     get_prompt_ids,
     prepare_sampling_args_for_token_prompts,
+    tokenize_vllm,
 )
 
 if TYPE_CHECKING:
@@ -482,6 +483,13 @@ class Environment(ABC):
                         "modalities": ["text"],
                     }
 
+                # Log token count being sent to vLLM
+                # try:
+                #     prompt_tokens = await tokenize_vllm(client, prompt, oai_tools, model)
+                #     self.logger.info(f"Sending {len(prompt_tokens)} tokens to vLLM")
+                # except Exception as e:
+                #     self.logger.warning(f"Could not count tokens: {e}")
+
                 if oai_tools:
                     response = await client.chat.completions.create(
                         model=model,
@@ -536,6 +544,9 @@ class Environment(ABC):
                 **sampling_args,
                 **extra_body,
             )
+
+            # Log token count being sent to vLLM (pre-tokenized)
+            self.logger.info(f"Sending {len(prompt_ids)} tokens to vLLM (pre-tokenized)")
 
             return await client.post(
                 "/chat/completions/tokens",

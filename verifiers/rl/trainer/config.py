@@ -68,6 +68,13 @@ class RLConfig(TrainingArguments):
         default=8,
         metadata={"help": "Batch size per device per step."},
     )
+    logprobs_chunk_size: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "Chunk size for logprobs computation. If None, uses micro_batch_size. "
+            "Lower values reduce memory usage for large vocab models."
+        },
+    )
     max_seq_len: int = field(
         default=2048,
         metadata={"help": "Maximum length for training sequences."},

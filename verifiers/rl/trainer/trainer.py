@@ -18,6 +18,7 @@ from torch.utils.data import DataLoader, Dataset
 from transformers.modeling_utils import PreTrainedModel
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import Trainer
+from tqdm.auto import tqdm
 
 import verifiers as vf
 from verifiers.errors import Error
@@ -81,6 +82,7 @@ class RLTrainer(Trainer):
         self.max_steps = args.max_steps
         self.max_seq_len = args.max_seq_len
         self.temperature = args.temperature
+        self.logprobs_chunk_size = args.logprobs_chunk_size or args.micro_batch_size
 
         # loss args
         self.mask_ratio_low = args.mask_ratio_low
@@ -171,7 +173,22 @@ class RLTrainer(Trainer):
         pad_token_id = getattr(self.processing_class, "pad_token_id", None)
         assert pad_token_id is not None
 
-        for microbatch in local_microbatches:
+        # self.logger.info(
+        #     f"Running {len(local_microbatches)} microbatches"
+        # )
+
+        for i, microbatch in tqdm(
+            enumerate(local_microbatches),
+            desc=f'Global Step: {self.state.global_step}. Running Microbatches',
+            total=len(local_microbatches)
+        ):
+            # Memory debugging
+            #allocated = torch.cuda.memory_allocated() / 1024**3
+            #reserved = torch.cuda.memory_reserved() / 1024**3
+            # self.logger.info(
+            #     f"Running microbatch: {i} | GPU mem: {allocated:.2f}GB allocated, {reserved:.2f}GB reserved"
+            # )
+
             input_ids = pad(
                 [torch.tensor(x, device=device) for x in microbatch.input_ids],
                 padding_value=pad_token_id,  # type: ignore :(
@@ -192,7 +209,9 @@ class RLTrainer(Trainer):
                 padding_side="right",
             )
             attn_mask = input_ids.ne(pad_token_id).int()
-            trainer_logprobs, entropies = self.get_logprobs(model, input_ids, attn_mask)
+            trainer_logprobs, entropies = self.get_logprobs(
+                model, input_ids, attn_mask, batch_size=self.logprobs_chunk_size
+            )
             loss_mask = loss_mask[:, 1:]
             inference_logprobs = inference_logprobs[:, 1:]
             advantages = advantages[:, 1:]
@@ -204,6 +223,9 @@ class RLTrainer(Trainer):
                 "advantages": advantages,
             }
             with self.compute_loss_context_manager():
+                # self.logger.info(
+                #     f"Computing loss for microbatch: {i}"
+                # )
                 loss, summaries = self.compute_loss(
                     model,
                     mb_inputs,
@@ -212,6 +234,13 @@ class RLTrainer(Trainer):
                 )
             self.accelerator.backward(loss * inv_tokens_per_rank)
             total_loss = total_loss + (loss.detach() * inv_tokens_per_rank)
+
+            # Memory after backward
+            #allocated = torch.cuda.memory_allocated() / 1024**3
+            #self.logger.info(f"After backward microbatch {i}: {allocated:.2f}GB allocated")
+            # Clear cache to prevent fragmentation
+            #torch.cuda.empty_cache()
+
             assert isinstance(summaries, dict)
             update_stat_tracker(ir_tracker, summaries["importance_sampling"])
             update_stat_tracker(entropy_tracker, summaries["entropy"])
@@ -244,6 +273,9 @@ class RLTrainer(Trainer):
             )
 
         self.maybe_clear_cache()
+        # self.logger.info(
+        #     f"Done with training_step"
+        # )
         return total_loss
 
     def compute_loss(
@@ -290,10 +322,20 @@ class RLTrainer(Trainer):
         batch_size = batch_size or input_ids.size(0)  # chunking for memory peak
         all_logprobs = []
         all_entropies = []
+        # batch_sz, seq_len = input_ids.shape
+        # self.logger.info(
+        #     f"Getting log probs in batchs: total_size={batch_sz}, batch_size={batch_size}, total batches={batch_sz/batch_size}, seq_len={seq_len}"
+        # )
         for i in range(0, input_ids.size(0), batch_size):
             input_ids_batch = input_ids[i : i + batch_size]
             attention_mask_batch = attention_mask[i : i + batch_size]
             logits_to_keep = attention_mask_batch.size(1) + 1
+            
+            # batch_sz, seq_len = input_ids_batch.shape
+            # self.logger.info(
+            #     f"Forward pass: batch_size={batch_sz}, seq_len={seq_len}, total_tokens={batch_sz * seq_len}"
+            # )
+
             logits = model(
                 input_ids=input_ids_batch,
                 attention_mask=attention_mask_batch,
@@ -310,7 +352,9 @@ class RLTrainer(Trainer):
             all_entropies.append(entropies)
         logprobs = torch.cat(all_logprobs, dim=0)
         entropies = torch.cat(all_entropies, dim=0)
-        #import pdb;pdb.set_trace()
+        # self.logger.info(
+        #     f"Done getting logprobs"
+        # )
         return logprobs, entropies
 
     def update_vllm(self):
